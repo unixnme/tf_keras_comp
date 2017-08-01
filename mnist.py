@@ -130,7 +130,7 @@ def create_tf_model(depths=[32, 64], sparse=True):
 
 if __name__ == '__main__':
     unit_test_get_batches()
-    sparse = True
+    sparse = False
 
     W, b, tensors, pred = create_tf_model(sparse=sparse)
     optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(tensors[-1])
@@ -157,7 +157,12 @@ if __name__ == '__main__':
             print "Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(avg_cost)
 
             x,y = next(gen_test)
-            f = {tensors[1]: x, tensors[0]: y.reshape(-1)}
+            f = {tensors[1]: x, tensors[0]: y}
             y_pred, cost = sess.run([pred, tensors[-1]], f)
-            accuracy = np.sum(y_pred == y) / float(test_batch_size)
+            if sparse:
+                y_true = y
+            else:
+                y_true = np.argmax(y, axis=-1)
+
+            accuracy = np.sum(y_pred == y_true) / float(test_batch_size)
             print 'test accuracy =', accuracy, '%'
