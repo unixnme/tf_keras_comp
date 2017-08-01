@@ -22,7 +22,7 @@ def get_batches(batch_size=128, sparse=True, shuffle=True, datatype=DataType.TRA
     """
     generator for getting batches of X,Y data for mnist
     :param batch_size: # of samples per batch
-    :param sparse: if true, Y has shape (batch_size, 1)
+    :param sparse: if true, Y has shape (batch_size, )
                    if false, Y has shape (batch_size, num_classes)
     :param shuffle: if true, shuffle
                     if false: do not shuffle
@@ -39,9 +39,6 @@ def get_batches(batch_size=128, sparse=True, shuffle=True, datatype=DataType.TRA
     x_test = x_test.astype(np.float32) / 255
     x_train = np.expand_dims(x_train, axis=-1)
     x_test = np.expand_dims(x_test, axis=-1)
-
-    y_train = np.expand_dims(y_train, axis=-1)
-    y_test = np.expand_dims(y_test, axis=-1)
 
     if datatype == DataType.TRAIN:
         num_samples = num_train_samples
@@ -76,9 +73,9 @@ def unit_test_get_batches():
     for __ in range(10):
         for _ in range(int(num_train_samples / float(128))):
             x,y = next(train_gen)
-            assert x.shape == (128, img_rows, img_cols, 1) and y.shape == (128, 1)
+            assert x.shape == (128, img_rows, img_cols, 1) and y.shape == (128, )
         x,y = next(train_gen)
-        assert x.shape == (num_train_samples % 128, img_rows, img_cols, 1) and y.shape == (num_train_samples % 128, 1)
+        assert x.shape == (num_train_samples % 128, img_rows, img_cols, 1) and y.shape == (num_train_samples % 128, )
         assert x.dtype == np.float32 and y.dtype == np.int32
 
         for _ in range(int(num_test_samples / float(15))):
@@ -132,8 +129,10 @@ def create_tf_model(depths=[32, 64], sparse=True):
 
 
 if __name__ == '__main__':
-    #unit_test_get_batches()
-    W, b, tensors, pred = create_tf_model()
+    unit_test_get_batches()
+    sparse = True
+
+    W, b, tensors, pred = create_tf_model(sparse=sparse)
     optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(tensors[-1])
 
     init = tf.global_variables_initializer()
@@ -141,15 +140,15 @@ if __name__ == '__main__':
         sess.run(init)
 
         # training
-        gen = get_batches(batch_size=batch_size, sparse=True)
-        gen_test = get_batches(batch_size=test_batch_size, sparse=True, datatype=DataType.TEST, shuffle=True)
+        gen = get_batches(batch_size=batch_size, sparse=sparse)
+        gen_test = get_batches(batch_size=test_batch_size, sparse=sparse, datatype=DataType.TEST, shuffle=True)
 
         for epoch in range(trainig_epochs):
             avg_cost = 0.
             batches_per_epoch = int(np.ceil(num_train_samples / float(batch_size)))
             for i in range(batches_per_epoch):
                 x,y = next(gen)
-                f = {tensors[1]: x, tensors[0]: y.reshape(-1)}
+                f = {tensors[1]: x, tensors[0]: y}
                 _, cost = sess.run([optimizer, tensors[-1]], f)
                 avg_cost += cost
                 #print 'batch', i, 'cost =', cost
@@ -160,5 +159,5 @@ if __name__ == '__main__':
             x,y = next(gen_test)
             f = {tensors[1]: x, tensors[0]: y.reshape(-1)}
             y_pred, cost = sess.run([pred, tensors[-1]], f)
-            accuracy = np.sum(y_pred == y.reshape(-1)) / float(test_batch_size)
+            accuracy = np.sum(y_pred == y) / float(test_batch_size)
             print 'test accuracy =', accuracy, '%'
