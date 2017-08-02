@@ -9,7 +9,7 @@ img_channels = 1
 num_train_samples = 60000
 num_test_samples = 10000
 num_classes = 10
-trainig_epochs = 10
+trainig_epochs = 1
 batch_size = 128
 test_batch_size = 1000
 learning_rate = 0.001
@@ -127,9 +127,7 @@ def create_tf_model(depths=[32, 64], sparse=True):
     pred = tf.argmax(tensors[-3], axis=-1)
     return W, b, tensors, pred
 
-
-if __name__ == '__main__':
-    unit_test_get_batches()
+def train_tf_model():
     sparse = False
 
     W, b, tensors, pred = create_tf_model(sparse=sparse)
@@ -147,16 +145,16 @@ if __name__ == '__main__':
             avg_cost = 0.
             batches_per_epoch = int(np.ceil(num_train_samples / float(batch_size)))
             for i in range(batches_per_epoch):
-                x,y = next(gen)
+                x, y = next(gen)
                 f = {tensors[1]: x, tensors[0]: y}
                 _, cost = sess.run([optimizer, tensors[-1]], f)
                 avg_cost += cost
-                #print 'batch', i, 'cost =', cost
+                # print 'batch', i, 'cost =', cost
 
             avg_cost /= batches_per_epoch
             print "Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(avg_cost)
 
-            x,y = next(gen_test)
+            x, y = next(gen_test)
             f = {tensors[1]: x, tensors[0]: y}
             y_pred, cost = sess.run([pred, tensors[-1]], f)
             if sparse:
@@ -166,3 +164,40 @@ if __name__ == '__main__':
 
             accuracy = np.sum(y_pred == y_true) / float(test_batch_size)
             print 'test accuracy =', accuracy, '%'
+
+
+def create_keras_model(depths=[32, 64], sparse=True):
+    img_input = keras.layers.Input(shape=[img_rows, img_cols, 1])
+    x = img_input
+    for depth in depths:
+        x = keras.layers.Conv2D(filters=depth, kernel_size=[3,3], strides=[1,1], padding='same',
+                                kernel_initializer=keras.initializers.random_normal(),
+                                bias_initializer=keras.initializers.random_normal(),
+                                activation=keras.activations.elu)(x)
+        x = keras.layers.MaxPooling2D(pool_size=[2,2], padding='same')(x)
+
+    x = keras.layers.Flatten()(x)
+    x = keras.layers.Dense(num_classes, activation=keras.activations.softmax,
+                           kernel_initializer=keras.initializers.random_normal(),
+                           bias_initializer=keras.initializers.random_normal())(x)
+
+    model = keras.models.Model(inputs=img_input, outputs=x)
+    model.compile(optimizer=keras.optimizers.SGD(learning_rate), loss=keras.losses.sparse_categorical_crossentropy,
+                  metrics=[keras.metrics.sparse_categorical_accuracy])
+
+    return model
+
+def train_keras_model():
+    sparse = True
+    model = create_keras_model()
+    gen = get_batches(batch_size=batch_size, sparse=sparse)
+    gen_test = get_batches(batch_size=test_batch_size, sparse=sparse, datatype=DataType.TEST, shuffle=True)
+    batches_per_epoch = int(np.ceil(num_train_samples / float(batch_size)))
+    model.fit_generator(generator=gen, steps_per_epoch=batches_per_epoch, epochs=trainig_epochs, verbose=1,
+                        validation_data=gen_test, validation_steps=1)
+
+if __name__ == '__main__':
+    np.random.seed(0)
+    #unit_test_get_batches()
+    train_keras_model()
+
