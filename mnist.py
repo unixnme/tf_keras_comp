@@ -182,14 +182,18 @@ def create_keras_model(depths=[32, 64], sparse=True):
                            bias_initializer=keras.initializers.random_normal())(x)
 
     model = keras.models.Model(inputs=img_input, outputs=x)
-    model.compile(optimizer=keras.optimizers.SGD(learning_rate), loss=keras.losses.sparse_categorical_crossentropy,
-                  metrics=[keras.metrics.sparse_categorical_accuracy])
+    if sparse:
+        model.compile(optimizer=keras.optimizers.SGD(learning_rate), loss=keras.losses.sparse_categorical_crossentropy,
+                      metrics=[keras.metrics.sparse_categorical_accuracy])
+    else:
+        model.compile(optimizer=keras.optimizers.SGD(learning_rate), loss=keras.losses.categorical_crossentropy,
+                      metrics=[keras.metrics.categorical_accuracy])
 
     return model
 
 def train_keras_model():
-    sparse = True
-    model = create_keras_model()
+    sparse = False
+    model = create_keras_model(sparse=sparse)
     gen = get_batches(batch_size=batch_size, sparse=sparse)
     gen_test = get_batches(batch_size=test_batch_size, sparse=sparse, datatype=DataType.TEST, shuffle=True)
     batches_per_epoch = int(np.ceil(num_train_samples / float(batch_size)))
